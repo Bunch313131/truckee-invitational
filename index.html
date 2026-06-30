@@ -10,6 +10,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Golf Tournament">
     <link rel="apple-touch-icon" class="brand-favicon" href="assets/images/apple-touch-icon.png">
@@ -4438,7 +4439,7 @@
     // COURSE DATA
     // ─────────────────────────────────────────────────────────
     // App version for cache busting and migration
-    const APP_VERSION = '3.3.13';
+    const APP_VERSION = '3.3.14';
     const VERSION_KEY = 'smashters-version';
 
     const DEFAULT_COURSE_HOLES = [
@@ -13318,6 +13319,41 @@
     }
     // True when the shown src is a user-uploaded image rather than a bundled default.
     function isCustomBrandSrc(src) { return typeof src === 'string' && src.startsWith('data:'); }
+
+    // Replace the <link rel="manifest"> with a config-driven manifest so the
+    // installed/home-screen app name, colors, and icon match this tournament
+    // (the bundled manifest.json is just a neutral template default).
+    function injectManifest() {
+        try {
+            const link = document.querySelector('link[rel="manifest"]');
+            if (!link) return;
+            const name = brandEventName();
+            const t = { ...DEFAULT_THEME, ...(S.config.theme || {}) };
+            // A blob: manifest resolves relative URLs against the blob origin, which breaks
+            // installability — so start_url, scope, and the icon must be ABSOLUTE.
+            const dir = location.href.replace(/[^/]*([?#].*)?$/, '');
+            const rawIcon = brandValue('logo') || 'assets/images/apple-touch-icon.png';
+            const iconUrl = rawIcon.startsWith('data:') ? rawIcon : new URL(rawIcon, location.href).href;
+            const manifest = {
+                name: name,
+                // home screens show ~12 chars; use the first word when the name is long
+                short_name: name.length > 12 ? name.split(' ')[0] : name,
+                description: (brandClubName() ? brandClubName() + ' — ' : '') + 'Golf tournament manager',
+                start_url: dir, scope: dir, display: 'standalone', orientation: 'portrait',
+                background_color: t.dark, theme_color: t.dark,
+                icons: [
+                    { src: iconUrl, sizes: '192x192', type: 'image/png', purpose: 'any' },
+                    { src: iconUrl, sizes: '512x512', type: 'image/png', purpose: 'any' },
+                    { src: iconUrl, sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+                ],
+            };
+            const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+            if (link._blobUrl) URL.revokeObjectURL(link._blobUrl);
+            link._blobUrl = URL.createObjectURL(blob);
+            link.setAttribute('href', link._blobUrl);
+        } catch (e) { console.error('injectManifest error:', e); }
+    }
+
     // Apply all branding to the live DOM. Safe to call after every render — it
     // remembers each brandable <img>'s original default so overrides can be cleared.
     function applyBranding() {
@@ -13349,6 +13385,10 @@
             document.querySelectorAll('link.brand-favicon').forEach(l => {
                 if (l.getAttribute('href') !== favSrc) l.setAttribute('href', favSrc);
             });
+
+            // Home-screen / PWA name + icon come from the manifest, which is a static
+            // file that can't read config — so build one from the live config at runtime.
+            injectManifest();
 
             // CSS background watermarks/embosses (can't be swapped as <img>) — drive via vars.
             // Watermark falls back to the main logo so one upload covers everything.
