@@ -4439,7 +4439,7 @@
     // COURSE DATA
     // ─────────────────────────────────────────────────────────
     // App version for cache busting and migration
-    const APP_VERSION = '3.3.15';
+    const APP_VERSION = '3.3.16';
     const VERSION_KEY = 'smashters-version';
 
     const DEFAULT_COURSE_HOLES = [
@@ -4473,10 +4473,11 @@
 
     // Default branding — empty asset fields fall back to the bundled Smashters images
     const DEFAULT_BRANDING = {
-        appTitle: '',     // browser tab title; '' => "<eventName> - <clubName>"
-        logo: '',         // header/menu logo as data URL; '' => bundled smashters-logo-green.png
-        logoSplash: '',   // splash/gate logo as data URL; '' => bundled default
-        watermark: '',    // faint background watermark; '' => bundled DFCG watermark
+        appTitle: '',       // browser tab title; '' => "<eventName> - <clubName>"
+        logo: '',           // header/menu logo as data URL; '' => bundled smashters-logo-green.png
+        logoSplash: '',     // splash/gate logo as data URL; '' => bundled default
+        watermark: '',      // faint background watermark (everywhere); '' => bundled DFCG watermark
+        splashIntro: false, // show an intro "Presents" screen before the logo on the splash
     };
 
     const DEFAULT_COURSE_ID = 'course-1';
@@ -4579,6 +4580,7 @@
         if (!config) return config;
         config.theme = { ...DEFAULT_THEME, ...(config.theme || {}) };
         config.branding = { ...DEFAULT_BRANDING, ...(config.branding || {}) };
+        config.branding.splashIntro = !!config.branding.splashIntro;
         if (!config.adminCode) config.adminCode = '0000';
         if (!config.scorerCode) config.scorerCode = '0000';
 
@@ -9144,7 +9146,15 @@
                     <p class="text-sm text-muted mb-8">Images are auto-resized &amp; compressed so they sync quickly. PNG with transparency works best for logos.</p>
                     ${logoPreview('logo', 'assets/images/smashters-logo-green.png', 'Main Logo (header, menu, splash)')}
                     ${logoPreview('logoSplash', 'assets/images/dfgc-logo-transparent.png', 'Secondary Logo (broadcast)')}
-                    ${logoPreview('watermark', 'assets/images/Phone Size DFCG No Background.png', 'Watermark / Welcome Image')}
+                    ${logoPreview('watermark', 'assets/images/Phone Size DFCG No Background.png', 'Watermark (faint background on empty screens)')}
+                    <label style="display:block;font-weight:600;margin:14px 0 8px;">Splash Screen</label>
+                    <div class="form-group">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                            <input type="checkbox" id="cfgSplashIntro" ${branding.splashIntro ? 'checked' : ''} style="width:18px;height:18px;">
+                            Show an intro screen before the logo
+                        </label>
+                        <span class="text-sm text-muted">When on, the splash plays a “Presents” intro (using the Watermark image, or the main logo) before your logo + year. Off = straight to the logo + year.</span>
+                    </div>
                 </div>
             </div>
 
@@ -9215,6 +9225,7 @@
 
         // Branding (text) + theme colors
         if (val('cfgAppTitle') !== undefined) S.config.branding.appTitle = val('cfgAppTitle').trim();
+        if (chk('cfgSplashIntro') !== undefined) S.config.branding.splashIntro = chk('cfgSplashIntro');
         ['dark','primary','accent','danger'].forEach(k => {
             const v = val('cfgTheme_' + k);
             if (v !== undefined) S.config.theme[k] = v;
@@ -10939,11 +10950,10 @@
         // No bundled intro video in the template — skip the (Smashters-specific) video phase.
         if (videoPhase) videoPhase.classList.add('hidden');
 
-        // Show the intro "Presents" screen ONLY when a separate Welcome image is set
-        // (different from the main logo). Otherwise skip straight to the logo + date so
-        // we don't show the same logo twice.
-        const welcome = brandValue('watermark');
-        const showIntro = welcome && welcome !== brandValue('logo');
+        // Show the intro "Presents" screen only when explicitly enabled (independent of
+        // the watermark, which appears everywhere). The intro uses the watermark image,
+        // or the main logo if none is set.
+        const showIntro = !!(S.config.branding && S.config.branding.splashIntro);
 
         phase2.classList.remove('hidden', 'fade-out');
         phase2.classList.add('active');
