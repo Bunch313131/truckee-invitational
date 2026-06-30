@@ -1,0 +1,19 @@
+{
+    "name": "Golf Tournament Manager",
+    "short_name": "Tournament",
+    "description": "Ryder Cup style golf event manager — customizable courses, colors, and branding",
+    "start_url": "./",
+    "scope": "./",
+    "display": "standalone",
+    "background_color": "#00432e",
+    "theme_color": "#00432e",
+    "orientation": "portrait",
+    "icons": [
+        {
+            "src": "assets/images/apple-touch-icon.png",
+            "sizes": "180x180",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
+}
