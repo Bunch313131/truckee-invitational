@@ -4438,7 +4438,7 @@
     // COURSE DATA
     // ─────────────────────────────────────────────────────────
     // App version for cache busting and migration
-    const APP_VERSION = '3.3.12';
+    const APP_VERSION = '3.3.13';
     const VERSION_KEY = 'smashters-version';
 
     const DEFAULT_COURSE_HOLES = [
@@ -10069,9 +10069,9 @@
                             firebaseTimestamp,
                             localTimestamp
                         });
-                    } else {
-                        // Firebase is newer or within 5 seconds - prefer Firebase to avoid conflicts
-                        console.log('Pulling from Firebase (cloud is source of truth)...', {
+                    } else if (firebaseTimestamp > localTimestamp) {
+                        // Firebase is newer - pull
+                        console.log('Pulling from Firebase (cloud is newer)...', {
                             firebaseTimestamp,
                             localTimestamp,
                             diff: firebaseTimestamp - localTimestamp
@@ -10079,6 +10079,11 @@
                         this.applyState(firebaseData);
                         renderTab(S.ui.activeTab);
                         showToast('Synced from cloud');
+                    } else {
+                        // Local is newer than the cloud but we're not in a push branch
+                        // (e.g. a viewer reload). Keep local so we never clobber freshly
+                        // edited setup with older cloud data. It will push once admin saves.
+                        console.log('Keeping local data (newer than cloud); will push on next admin save');
                     }
                 } else {
                     // No Firebase data yet - push current state
@@ -10285,33 +10290,18 @@
         validateState(state, source = 'unknown') {
             if (!state) return { valid: false, reason: 'No state data' };
 
-            const playerCount = Object.keys(state.players || {}).length;
-            const matchCount = Object.keys(state.matches || {}).length;
-
-            // Check if we have players
-            if (playerCount === 0) {
-                console.warn(`${source} validation: No players found`);
-                return { valid: false, reason: 'No players' };
-            }
-
-            // Check for corrupted handicaps (all zeros or all null)
-            const players = Object.values(state.players || {});
-            const handicaps = players.map(p => parseInt(p.handicap) || 0);
-            const nonZeroHandicaps = handicaps.filter(h => h > 0).length;
-
-            // If we have more than 2 players and ALL handicaps are 0, it's likely corrupted
-            if (playerCount > 2 && nonZeroHandicaps === 0) {
-                console.error(`${source} validation FAILED: All handicaps are 0 (likely corrupted)`);
-                return { valid: false, reason: 'All handicaps are 0' };
-            }
-
-            // Check config
+            // Only reject genuinely broken/empty state. A tournament is set up over
+            // time (branding & courses first, players & handicaps later), so 0 players
+            // or 0 handicaps are perfectly valid and MUST still sync — otherwise the
+            // admin's setup never reaches the cloud and other devices see only defaults.
             if (!state.config || !state.config.teamA || !state.config.teamB) {
                 console.warn(`${source} validation: Missing config data`);
                 return { valid: false, reason: 'Missing config' };
             }
 
-            console.log(`${source} validation PASSED: ${playerCount} players, ${matchCount} matches, ${nonZeroHandicaps}/${playerCount} with handicaps`);
+            const playerCount = Object.keys(state.players || {}).length;
+            const matchCount = Object.keys(state.matches || {}).length;
+            console.log(`${source} validation PASSED: ${playerCount} players, ${matchCount} matches`);
             return { valid: true };
         },
 
