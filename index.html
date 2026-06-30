@@ -9987,6 +9987,7 @@
                     // Firebase has data - compare with local
                     const localPlayerCount = Object.keys(S.players || {}).length;
                     const firebasePlayerCount = Object.keys(firebaseData.players || {}).length;
+                    this._lastRemotePlayerCount = firebasePlayerCount; // for the empty-overwrite guard
                     const localTimestamp = S._lastSync || 0;
                     const firebaseTimestamp = firebaseData.updatedAt || 0;
 
@@ -10234,6 +10235,15 @@
                 return;
             }
 
+            // SAFETY: never let an empty roster overwrite a populated cloud event.
+            // (A "no-history" device that hasn't pulled yet, or an accidental wipe.)
+            // Allowed: 0 players when the cloud also has ~0 (normal early setup).
+            const localPlayerCount = Object.keys(S.players || {}).length;
+            if (localPlayerCount === 0 && (this._lastRemotePlayerCount || 0) > 0) {
+                console.warn(`🛑 Sync skipped: local has 0 players but cloud has ${this._lastRemotePlayerCount}; refusing to overwrite a populated event.`);
+                return;
+            }
+
             if (this.isAdmin) {
                 this._suppressListener = true;
                 this.eventRef.update({
@@ -10316,6 +10326,10 @@
                 showToast(`Blocked corrupted sync: ${validation.reason}`);
                 return; // Don't apply corrupted data!
             }
+
+            // Remember how many players the cloud has, so we never push an empty
+            // roster over a populated event (see the guard in syncToFirebase).
+            this._lastRemotePlayerCount = Object.keys(val.players || {}).length;
 
             const base = defaultState();
             const asArray = v => Array.isArray(v) ? v : (v ? Object.values(v) : null);
