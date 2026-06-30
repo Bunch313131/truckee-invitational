@@ -4439,7 +4439,7 @@
     // COURSE DATA
     // ─────────────────────────────────────────────────────────
     // App version for cache busting and migration
-    const APP_VERSION = '3.3.16';
+    const APP_VERSION = '3.3.17';
     const VERSION_KEY = 'smashters-version';
 
     const DEFAULT_COURSE_HOLES = [
@@ -4962,6 +4962,12 @@
     const tabOrder = ['leaderboard', 'individual', 'scoring', 'schedule', 'players', 'matches', 'settings'];
 
     function switchTab(tabId, direction = null) {
+        // Warn before leaving Settings with unsaved edits
+        if (S.ui.activeTab === 'settings' && tabId !== 'settings' && settingsDirty) {
+            if (!confirm('You have unsaved changes in Settings.\n\nLeave without saving?')) return;
+            settingsDirty = false; // user chose to discard
+        }
+
         // Password protect admin-only tabs
         const adminTabs = ['settings', 'players', 'matches', 'draft'];
         if (adminTabs.includes(tabId) && !S.ui.settingsUnlocked) {
@@ -5031,6 +5037,11 @@
     document.getElementById('bottomNav').addEventListener('click', e => {
         const btn = e.target.closest('.bottom-nav-btn[data-tab]');
         if (btn) switchTab(btn.dataset.tab);
+    });
+
+    // Warn before closing/reloading the page with unsaved Settings edits
+    window.addEventListener('beforeunload', e => {
+        if (settingsDirty) { e.preventDefault(); e.returnValue = ''; }
     });
 
     // Slide-out menu
@@ -8896,8 +8907,18 @@
         }).join('');
     }
 
+    let settingsDirty = false; // unsaved edits in the Settings form
     function renderSettings() {
         const el = document.getElementById('settings-content');
+        // Track edits so we can warn before navigating away. Bind once; the delegated
+        // listener catches input/change events bubbling from any field. Re-rendering the
+        // form (which only happens after a save) resets the dirty flag to clean.
+        if (el && !el._dirtyBound) {
+            el.addEventListener('input', () => { settingsDirty = true; });
+            el.addEventListener('change', () => { settingsDirty = true; });
+            el._dirtyBound = true;
+        }
+        settingsDirty = false;
         const theme = { ...DEFAULT_THEME, ...(S.config.theme || {}) };
         const branding = { ...DEFAULT_BRANDING, ...(S.config.branding || {}) };
         const logoPreview = (key, defImg, label) => {
@@ -9158,7 +9179,7 @@
                 </div>
             </div>
 
-            <button onclick="saveSettings()" style="position:sticky;bottom:14px;z-index:5;display:block;width:100%;padding:17px;margin:28px 0 8px;border:2px solid rgba(0,0,0,0.15);border-radius:12px;background:var(--masters-yellow);color:#1a1a1a;font-size:1.2rem;font-weight:800;letter-spacing:0.5px;cursor:pointer;box-shadow:0 8px 22px rgba(0,0,0,0.28);">💾 Save Settings</button>
+            <button onclick="saveSettings()" style="display:block;width:100%;padding:16px;margin:28px 0 8px;border:1px solid rgba(0,0,0,0.12);border-radius:12px;background:var(--masters-yellow);color:#1a1a1a;font-size:1.15rem;font-weight:800;letter-spacing:0.5px;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,0.12);">💾 Save Settings</button>
 
             <!-- ── Data & Backup: separated from the editable config above ── -->
             <div style="margin-top:40px;padding-top:18px;border-top:2px dashed #d5d5d5;">
@@ -9289,6 +9310,7 @@
         setTeamColorVars();
         applyBranding();
         saveState();
+        settingsDirty = false;
         showToast('Settings saved');
     }
 
