@@ -9948,7 +9948,8 @@
             try {
                 const override = new URLSearchParams(location.search).get('event');
                 if (override) return override.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-                const host = (location.hostname || 'local').toLowerCase();
+                // Strip a leading "www." so www.example.com and example.com share one event
+                const host = (location.hostname || 'local').toLowerCase().replace(/^www\./, '');
                 // keep the folder path (drop the trailing filename like index.html)
                 const path = (location.pathname || '').toLowerCase().replace(/\/[^\/]*\.[^\/]*$/, '').replace(/^\/+|\/+$/g, '');
                 const slug = (host + (path ? '-' + path : '')).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
